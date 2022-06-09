@@ -1,5 +1,6 @@
 import { $ } from './utils/dom.js';
 import store from './store/index.js';
+import MenuApi from './api/index.js';
 
 function App() {
   // 상태는 변하는 데이터 - 이 앱에서 변하는것이 무엇인가 - 메뉴명
@@ -12,22 +13,25 @@ function App() {
     desert: [],
   };
   this.currentCategory = 'espresso';
-  this.init = () => {
-    if (store.getLocalStorage()) {
-      this.menu = store.getLocalStorage();
-    }
+
+  this.init = async () => {
+    this.menu[this.currentCategory] = await MenuApi.getAllMenuByCategory(
+      this.currentCategory
+    );
     render();
     initEventListeners();
   };
 
   const render = () => {
     const template = this.menu[this.currentCategory]
-      .map((item, index) => {
+      .map((item) => {
         return `
-      <li data-menu-id="${index}" class="menu-list-item d-flex items-center py-2">
-        <span class="w-100 pl-2 menu-name ${item.soldOut ? 'sold-out' : ''} ">${
-          item.name
-        }</span>
+      <li data-menu-id="${
+        item.id
+      }" class="menu-list-item d-flex items-center py-2">
+        <span class="w-100 pl-2 menu-name ${
+          item.isSoldOut ? 'sold-out' : ''
+        } ">${item.name}</span>
         <button
         type="button"
         class="bg-gray-50 text-gray-500 text-sm mr-1 menu-sold-out-button"
@@ -58,42 +62,49 @@ function App() {
     $('.menu-count').innerText = `총 ${menuCount}개`;
   };
 
-  const addMenuName = () => {
+  const addMenuName = async () => {
     if ($('#menu-name').value === '') {
       alert('값을 입력해주세요!');
       return;
     }
 
     const menuName = $('#menu-name').value;
-    this.menu[this.currentCategory].push({ name: menuName });
-    store.setLocalStorage(this.menu);
+    await MenuApi.createMenu(this.currentCategory, menuName);
+    this.menu[this.currentCategory] = await MenuApi.getAllMenuByCategory(
+      this.currentCategory
+    );
     render();
     $('#menu-name').value = '';
   };
 
-  const updateMenuName = (e) => {
+  const updateMenuName = async (e) => {
     const menuId = e.target.closest('li').dataset.menuId;
     const $menuName = e.target.closest('li').querySelector('.menu-name');
     const updatedMenuName = prompt('메뉴명을 수정하세요', $menuName.innerText);
-    this.menu[this.currentCategory][menuId].name = updatedMenuName;
-    store.setLocalStorage(this.menu);
+    await MenuApi.updateMenu(this.currentCategory, updatedMenuName, menuId);
+    this.menu[this.currentCategory] = await MenuApi.getAllMenuByCategory(
+      this.currentCategory
+    );
     render();
   };
 
-  const removeMenuName = (e) => {
+  const removeMenuName = async (e) => {
     if (confirm('정말 삭제하시겠습니까?')) {
       const menuId = e.target.closest('li').dataset.menuId;
-      this.menu[this.currentCategory].splice(menuId, 1);
-      store.setLocalStorage(this.menu);
+      await MenuApi.deleteMenu(this.currentCategory, menuId);
+      this.menu[this.currentCategory] = await MenuApi.getAllMenuByCategory(
+        this.currentCategory
+      );
       render();
     }
   };
 
-  const soldOutMenu = (e) => {
+  const soldOutMenu = async (e) => {
     const menuId = e.target.closest('li').dataset.menuId;
-    this.menu[this.currentCategory][menuId].soldOut =
-      !this.menu[this.currentCategory][menuId].soldOut;
-    store.setLocalStorage(this.menu);
+    await MenuApi.toggleSoldOutMenu(this.currentCategory, menuId);
+    this.menu[this.currentCategory] = await MenuApi.getAllMenuByCategory(
+      this.currentCategory
+    );
     render();
   };
 
@@ -127,7 +138,7 @@ function App() {
       addMenuName();
     });
 
-    $('nav').addEventListener('click', (e) => {
+    $('nav').addEventListener('click', async (e) => {
       // 카테고리만 클릭 예외처리
       const isCategoryButton =
         e.target.classList.contains('cafe-category-name');
@@ -135,6 +146,9 @@ function App() {
         const categoryName = e.target.dataset.categoryName;
         this.currentCategory = categoryName;
         $('#category-title').innerText = `${e.target.innerText} 메뉴 관리`;
+        this.menu[this.currentCategory] = await MenuApi.getAllMenuByCategory(
+          this.currentCategory
+        );
         render();
       }
     });
